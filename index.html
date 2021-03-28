@@ -39,16 +39,16 @@
     </head>  
     <body>
         <br>
-        <h1 id="label">Pixlands!</h1>
+        <h1>Pixlands!</h1>
         <br>
-        <p> Click the map.</p>
+        <p id="label"> Area revived: Turn: </p>
         <table id="worldTable">
             <tbody id="worldBody"></tbody>
         </table>
     </body>
     <script>
 
-        let worldArray = [];
+        let worldArray = [], revivedArea = 0, turns = 0;
         const worldWidth = 64, worldHeight = 64;
         const DIRT = 'dirt', WATER = 'water', GRASS = 'grass', SOURCE = 'source', RIVER = 'river', SNOW = 'snow';
 
@@ -190,13 +190,14 @@
             }));
         }
 
-        function calculateGrass(inputArray){
+        function calculateGrass(inputArray, firstCall){
             inputArray.forEach((arr, y) => arr.forEach((entry, x) => {
                 if (entry && entry.type === DIRT) {
                     let neighboursArr = createNeighboursArr(inputArray, entry, x, y);
                     const neighboursWater = neighboursArr.filter((entry) => entry && [WATER, SOURCE, RIVER].includes(entry.type));
                     if (neighboursWater.length) {
                         entry.type = GRASS;
+                        if(!firstCall){revivedArea += 1}
                     }
                 }
             }));
@@ -214,7 +215,7 @@
             calculateWaterAndSnow(inputArray);
             calculateSources(inputArray);
             calculateRivers(inputArray);
-            calculateGrass(inputArray);
+            calculateGrass(inputArray, true);
         }
         determineCellTypes(worldArray);
 
@@ -240,6 +241,9 @@
             cell.style.backgroundColor = calcColor(entry);
         }
         let selectedCellX, selectedCellY;
+        function updateLabel(){
+            document.getElementById('label').innerHTML = `Area revived: ${revivedArea} Turn: ${turns}`;
+        }
         function mapClickEvent(event) {
             const surroundingCells = (x, y) => [
                     {y: y-1, x: x-1},
@@ -273,8 +277,9 @@
                 calculateGrass(worldArray);
                 loadTableData(worldArray);
                 selectedCellX = selectedCellY = undefined;
-
-            }else{
+                turns += 1;
+                updateLabel();
+            } else {
                 const selectedCell = event.target;
                 selectedCellX = selectedCell.cellIndex;
                 selectedCellY = selectedCell.parentNode.rowIndex;
@@ -305,5 +310,6 @@
             table.innerHTML = tableHtml;
         }
         loadTableData(worldArray);
+        updateLabel();
     </script>
 </html> 
