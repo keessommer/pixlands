@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>🏝️ Pixlands!</title>
+        <style>
+        
+        :root{
+            --background-color: rgb(0, 0, 0);
+            --font-color:rgb(255, 255, 255);
+            --light-blue-color: rgb(105, 134, 172);
+            --yellow-color:rgb(255, 236, 202);
+            --link-color:rgb(243, 142, 83);
+            --green-color:rgb(106, 165, 126);
+            --dark-blue-color:rgb(56, 86, 126);
+        }
+
+        body{
+            background-color:var(--background-color);
+            color:var(--font-color);
+            font-family: "Lucida Console", Courier, monospace;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 750px;
+            height: 750px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        h1 {
+            text-align: center;
+        }
+        p {
+            text-align: center;
+        }
+
+        </style>
+    </head>  
+    <body>
+        <br>
+        <h1 id="label">Pixlands!</h1>
+        <br>
+        <p> Click the map.</p>
+        <br><br>
+        <table id="worldTable">
+            <tbody id="worldBody"></tbody>
+        </table>
+    </body>
+    <script>
+
+        let worldArray = [];
+        const worldWidth = 64, worldHeight = 64;
+        const DIRT = 'dirt', WATER = 'water', GRASS = 'grass', SOURCE = 'source', RIVER = 'river', SNOW = 'snow';
+
+        for (i = 0; i < worldHeight; i++){
+            let arr = [];
+            for (j = 0; j < worldWidth; j++){
+                let cellHeight = 100;
+                const widthOfOcean = 4;
+                if (!(i <= widthOfOcean || j <= widthOfOcean || i >= worldHeight - widthOfOcean || j >= worldWidth - widthOfOcean)) {
+                    cellHeight = Math.random() * 255;
+                }
+                arr.push({
+                    height: cellHeight,
+                    type: DIRT,
+                    x: j,
+                    y: i,
+                });
+            }
+            worldArray.push(arr);
+        }
+
+        function averageArray2d(inputArray){
+            for (i = 0; i < worldHeight; i++){
+                for (j = 0; j < worldWidth; j++){
+                    let total = inputArray[i][j].height;
+                    let amount = 1;
+                    
+                    [i, i-1, i+1].forEach((vertical) => {
+                        if (vertical >= 0 && vertical < worldHeight) {
+                            [j, j+1, j-1].forEach((horizontal) => {
+                                if (horizontal >= 0 && horizontal < worldWidth){
+                                    total += inputArray[vertical][horizontal].height;
+                                    amount++;
+                                }
+                            })
+                        }
+                    })
+                    inputArray[i][j].height = total/amount;
+                }
+            }
+        }
+        const fuzziness = Math.round(worldWidth/15);
+        for (k = 0; k < fuzziness; k++) {
+            averageArray2d(worldArray);
+        }
+
+        function normalise2d(inputArray, targetMax){
+            const tempArray = [].concat(...inputArray).map((entry) => entry.height);
+            const max = Math.max(...tempArray);
+            const min = Math.min(...tempArray);
+            const correctedMax = max - min;
+            inputArray.forEach((arr) => arr.forEach((entry) => entry.height = ((entry.height - min) * targetMax) / correctedMax));
+        }
+        normalise2d(worldArray, 255);
+        function createNeighboursArr(inputArray, entry, x, y){
+            let outputArr = [
+                inputArray[y][x-1], 
+                inputArray[y][x+1],
+                inputArray[y][x-2],
+                inputArray[y][x+2],
+            ]
+            if (y > 0){
+                outputArr = outputArr.concat([
+                    inputArray[y-1][x-1],
+                    inputArray[y-1][x],
+                    inputArray[y-1][x+1],
+                ])
+                if (y > 1){
+                    outputArr = outputArr.concat([
+                        inputArray[y-2][x-1],
+                        inputArray[y-2][x],
+                        inputArray[y-2][x+1],
+                    ])
+                }
+            }
+            if (y < inputArray.length -1){
+                outputArr = outputArr.concat([
+                    inputArray[y+1][x-1],
+                    inputArray[y+1][x],
+                    inputArray[y+1][x+1],
+                ])
+                if (y < inputArray.length -2){
+                    outputArr = outputArr.concat([
+                        inputArray[y+2][x-1],
+                        inputArray[y+2][x],
+                        inputArray[y+2][x+1],
+                    ])
+                }
+            }
+            return outputArr;
+        }
+
+        function calculateSources(inputArray){
+            inputArray.forEach((arr) => arr.forEach((entry) => {
+                if (entry && entry.type === SNOW) {
+                    if (Math.random() > 0.66){
+                        let neighboursArr = createNeighboursArr(inputArray, entry, entry.x, entry.y);
+                        const neighboursWater = neighboursArr.filter((entry) => entry.type === SOURCE);
+                        if (!neighboursWater.length){
+                            entry.type = SOURCE;
+                        }
+                    }
+                }
+            }))
+        }
+
+        function clearRivers(inputArray){
+            inputArray.forEach((arr) => arr.forEach((entry) => {
+                if (entry.type === RIVER){ entry.type = GRASS}
+            }));
+        }
+
+        function calculateRivers(inputArray){
+            inputArray.forEach((arr) => arr.forEach((entry) => {
+                if (entry && entry.type === SOURCE) {
+                    let currentRiver = [];
+                    const lowestDirectNeighbour = (x, y) => {
+                        let directNeighbours = [worldArray[y][x-1], worldArray[y][x+1]];
+                        if (y>0){directNeighbours.push(worldArray[y-1][x])}
+                        if (y<worldArray.length-1){directNeighbours.push(worldArray[y+1][x])}
+                        directNeighbours = directNeighbours.filter((e) => e && !currentRiver.includes(e));
+                        if(directNeighbours.length){
+                            const neighboursHeights = directNeighbours.map((e) => e.height);
+                            const lowestHeight = Math.min(...neighboursHeights);
+                            const lowestNeighbour = directNeighbours.find(element => element.height === lowestHeight);
+                            return lowestNeighbour;
+                        }
+                        return undefined;
+                    };
+
+                    let nextCell = lowestDirectNeighbour(entry.x, entry.y);
+                    while (nextCell && ![WATER, SOURCE, RIVER].includes(nextCell.type)) {
+                        const currentCell = nextCell;
+                        currentCell.type = RIVER;
+                        nextCell = lowestDirectNeighbour(nextCell.x, nextCell.y);
+                        currentRiver.push(currentCell);
+                    }
+                }
+            }));
+        }
+
+        function calculateGrass(inputArray){
+            inputArray.forEach((arr, y) => arr.forEach((entry, x) => {
+                if (entry && entry.type === DIRT) {
+                    let neighboursArr = createNeighboursArr(inputArray, entry, x, y);
+                    const neighboursWater = neighboursArr.filter((entry) => entry && [WATER, SOURCE, RIVER].includes(entry.type));
+                    if (neighboursWater.length) {
+                        entry.type = GRASS;
+                    }
+                }
+            }));
+        }
+        function calculateWaterAndSnow(inputArray){
+            inputArray.forEach((arr) => arr.forEach((entry) => {
+                const waterLevel = 70, snowLevel = 210;
+                if ((entry.type === WATER && entry.height > waterLevel) || (entry.type === SNOW && entry.height < snowLevel)) {entry.type = DIRT}
+                if (entry.height < waterLevel) { entry.type = WATER } 
+                if (entry.height > snowLevel && entry.type !== SOURCE) { entry.type = SNOW }
+            }));
+        }
+
+        function determineCellTypes(inputArray){
+            calculateWaterAndSnow(inputArray);
+            calculateSources(inputArray);
+            calculateRivers(inputArray);
+            calculateGrass(inputArray);
+        }
+        determineCellTypes(worldArray);
+
+        function calcColor(cell){
+            const height = cell.height;
+            switch (cell.type) {
+                case 'source':
+                case 'river':
+                case 'water':
+                    return `rgb(${height * 0.7}, ${height * 0.8}, ${ Math.max(height * 0.9, 150)})`;
+                case 'grass':
+                    return `rgb(${height * 0.5}, ${height * 0.8}, ${height * 0.5})`;
+                case 'snow':
+                    return `rgb(${height * 0.8}, ${height * 0.9}, ${height * 0.9})`;
+                case 'dirt':
+                    return `rgb(${height * 0.8}, ${height * 0.5}, ${height * 0.33})`;
+                default:
+                    return `rgb(${height}, ${height}, ${height})`;
+            }
+        }
+        function setColor(cell){
+            const entry = worldArray[cell.parentNode.rowIndex][cell.cellIndex];
+            cell.style.backgroundColor = calcColor(entry);
+        }
+        let selectedCellX, selectedCellY;
+        function mapClickEvent(event) {
+            const surroundingCells = (x, y) => [
+                    {y: y-1, x: x-1},
+                    {y: y-1, x},
+                    {y: y-1, x: x+1},
+                    {y, x: x-1},
+                    {y, x: x+1},
+                    {y: y+1, x: x-1},
+                    {y: y+1, x},
+                    {y: y+1, x: x+1},
+                ]
+            if(selectedCellX) {
+                const maxChange = 20, minChange = 10;
+                worldArray[selectedCellY][selectedCellX].height -= maxChange;
+                surroundingCells(selectedCellX, selectedCellY).forEach(e => {
+                    if (e.x > -1 && e.y > -1 && e.x < worldWidth && e.y < worldHeight) {
+                            worldArray[e.y][e.x].height -= minChange
+                        }
+                });
+
+                const newCellX = event.target.cellIndex, newCellY = event.target.parentNode.rowIndex;
+                worldArray[newCellY][newCellX].height += maxChange;
+                surroundingCells(newCellX, newCellY).forEach(e => {
+                    if (e.x > -1 && e.y > -1 && e.x < worldWidth && e.y < worldHeight) {
+                        worldArray[e.y][e.x].height += minChange
+                    }
+                });
+                calculateWaterAndSnow(worldArray);
+                clearRivers(worldArray);
+                calculateRivers(worldArray);
+                calculateGrass(worldArray);
+                loadTableData(worldArray);
+                selectedCellX = selectedCellY = undefined;
+
+            }else{
+                const selectedCell = event.target;
+                selectedCellX = selectedCell.cellIndex;
+                selectedCellY = selectedCell.parentNode.rowIndex;
+                const table = document.getElementById("worldBody");
+                surroundingCells(selectedCellX, selectedCellY).forEach(e => {
+                    if (e.x > -1 && e.y > -1 && e.x < worldWidth && e.y < worldHeight)  {
+                        table.rows[e.y].cells[e.x].style.backgroundColor = 'rgb(255, 202, 79)'
+                    }
+                });
+            }
+        }
+        function mouseEnterCellEvent(event){
+            const cell = event.target;
+            // label.innerHTML = `X: ${cell.cellIndex}, Y: ${cell.parentNode.rowIndex}, Type: ${worldArray[cell.parentNode.rowIndex][cell.cellIndex].type}, Height: ${worldArray[cell.parentNode.rowIndex][cell.cellIndex].height}`;
+        }
+        function loadTableData(inputArray) {
+            const table = document.getElementById("worldBody");
+            table.innerHTML = '';
+            let tableHtml = ''
+            inputArray.forEach( array => {
+                tableHtml += '<tr>';
+                array.forEach(entry => {
+                    tableHtml += `<td onclick="mapClickEvent(event)" onmouseenter="mouseEnterCellEvent(event)"
+                    style="background-color:${calcColor(entry)};"></td>`;
+                })
+                tableHtml += '</tr>';
+            });
+            table.innerHTML = tableHtml;
+        }
+        loadTableData(worldArray);
+    </script>
+</html> 
